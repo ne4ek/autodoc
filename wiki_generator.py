@@ -3,6 +3,7 @@ from typing import Dict
 from pathlib import Path
 import logging
 from urllib.parse import quote
+from llm_providers import LLMProvider
 
 logger = logging.getLogger(__name__)
 
