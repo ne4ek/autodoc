@@ -2,6 +2,7 @@ import requests
 from typing import Dict
 from pathlib import Path
 import logging
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +65,11 @@ class WikiDocumentationGenerator:
                 logger.info(f"Обработка файла: {directory['name']}")
                 content += self._process_file(directory)
 
-        # Сохраняем страницу
-        page_url = self._save_page(project_name, content)
+        # Сохраняем страницу и получаем корректный URL
+        self._save_page(project_name, content)
+        
+        # Формируем корректную ссылку на страницу
+        page_url = f"{self.base_url}/index.php/{quote(project_name)}"
         logger.info(f"Документация сохранена: {page_url}")
         return page_url
 
@@ -211,23 +215,34 @@ class WikiDocumentationGenerator:
 
     def _save_page(self, title: str, content: str):
         """Сохранение страницы в MediaWiki"""
-        # Получаем токен для редактирования
-        params = {
-            'action': 'query',
-            'meta': 'tokens',
-            'format': 'json'
-        }
-        response = self.session.get(f"{self.base_url}/api.php", params=params)
-        edit_token = response.json()['query']['tokens']['csrftoken']
+        try:
+            # Получаем токен для редактирования
+            params = {
+                'action': 'query',
+                'meta': 'tokens',
+                'format': 'json'
+            }
+            response = self.session.get(f"{self.base_url}/api.php", params=params)
+            response.raise_for_status()  # Проверяем на ошибки HTTP
+            edit_token = response.json()['query']['tokens']['csrftoken']
 
-        # Сохраняем страницу
-        data = {
-            'action': 'edit',
-            'title': title,
-            'text': content,
-            'token': edit_token,
-            'format': 'json'
-        }
-        response = self.session.post(f"{self.base_url}/api.php", data=data)
-        if 'error' in response.json():
-            raise Exception(f"Failed to save page: {response.json()['error']}") 
+            # Сохраняем страницу
+            data = {
+                'action': 'edit',
+                'title': title,
+                'text': content,
+                'token': edit_token,
+                'format': 'json'
+            }
+            response = self.session.post(f"{self.base_url}/api.php", data=data)
+            response.raise_for_status()  # Проверяем на ошибки HTTP
+            
+            result = response.json()
+            if 'error' in result:
+                raise Exception(f"Failed to save page: {result['error']}")
+            
+            logger.info(f"Страница '{title}' успешно сохранена в MediaWiki")
+            
+        except Exception as e:
+            logger.error(f"Ошибка при сохранении страницы в MediaWiki: {e}", exc_info=True)
+            raise 

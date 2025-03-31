@@ -35,4 +35,11 @@ DOCUMENTATION_OUTPUT = int(os.getenv('DOCUMENTATION_OUTPUT'))
 
 # Проверка валидности DOCUMENTATION_OUTPUT
 if DOCUMENTATION_OUTPUT not in (1, 2, 3):
-    raise ValueError("DOCUMENTATION_OUTPUT must be 1, 2, or 3") 
+    raise ValueError("DOCUMENTATION_OUTPUT must be 1, 2, or 3")
+
+# LLM провайдер (openai или wizardcoder)
+LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'openai')
+
+# Настройки WizardCoder
+WIZARDCODER_MODEL = os.getenv('WIZARDCODER_MODEL', 'wizardcoder:7b-python')
+WIZARDCODER_HOST = os.getenv('WIZARDCODER_HOST', 'http://localhost:8000') 

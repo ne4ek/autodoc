@@ -7,11 +7,22 @@ from logger_config import setup_logger
 from config import (
     PROJECT_PATH, OPENAI_KEY, OUTPUT_DIR,
     MEDIAWIKI_BASE_URL, MEDIAWIKI_USERNAME, MEDIAWIKI_PASSWORD,
-    DOCUMENTATION_OUTPUT
+    DOCUMENTATION_OUTPUT, LLM_PROVIDER, 
+    WIZARDCODER_MODEL, WIZARDCODER_HOST
 )
 import logging
+from llm_providers import OpenAIProvider, OllamaProvider
 
 logger = logging.getLogger(__name__)
+
+def get_llm_provider():
+    """Получение провайдера LLM на основе конфигурации"""
+    if LLM_PROVIDER.lower() == 'openai':
+        return OpenAIProvider(OPENAI_KEY)
+    elif LLM_PROVIDER.lower() == 'wizardcoder':
+        return OllamaProvider(WIZARDCODER_HOST)
+    else:
+        raise ValueError(f"Неизвестный провайдер LLM: {LLM_PROVIDER}")
 
 def main():
     # Настройка логирования
@@ -19,7 +30,7 @@ def main():
     logger.info("Запуск генератора документации")
     
     # Инициализация OpenAI клиента
-    openai_client = openai.OpenAI(api_key=OPENAI_KEY)
+    openai_client = get_llm_provider()
     
     try:
         # 1. Анализ структуры проекта
