@@ -36,20 +36,41 @@ class OpenAIProvider(LLMProvider):
 
 class OllamaProvider(LLMProvider):
     """Провайдер для локальной модели WizardCoder"""
-    def __init__(self, host: str = "http://localhost:8000"):
+    def __init__(self, model_name: str = "wizardcoder:7b-python", host: str = "http://localhost:8000"):
+        self.model_name = model_name
         self.host = host.rstrip('/')
-        logger.info(f"Инициализирован провайдер WizardCoder")
+        self.max_context_length = 1500  # Уменьшаем максимальную длину контекста
+        logger.info(f"Инициализирован провайдер WizardCoder с моделью {model_name}")
 
-    def generate_text(self, prompt: str, max_tokens: int = 1000) -> str:
+    def _truncate_prompt(self, prompt: str, max_length: int = 1500) -> str:
+        """Обрезка промпта до указанной длины"""
+        words = prompt.split()
+        truncated_words = []
+        current_length = 0
+        
+        for word in words:
+            if current_length + len(word) + 1 <= max_length:
+                truncated_words.append(word)
+                current_length += len(word) + 1
+            else:
+                break
+                
+        return ' '.join(truncated_words)
+
+    def generate_text(self, prompt: str, max_tokens: int = 500) -> str:
         try:
-            logger.debug(f"Отправка запроса к WizardCoder")
+            # Обрезаем промпт до безопасной длины
+            truncated_prompt = self._truncate_prompt(prompt, self.max_context_length)
+            
+            logger.debug(f"Отправка запроса к WizardCoder ({self.model_name})")
             response = requests.post(
                 f"{self.host}/v1/completions",
                 headers={"Content-Type": "application/json"},
                 json={
-                    "prompt": prompt,
-                    "max_tokens": max_tokens,
+                    "prompt": truncated_prompt,
+                    "max_tokens": max_tokens,  # Уменьшаем максимальное количество токенов
                     "temperature": 0.3,
+                    "model": self.model_name
                 }
             )
             
