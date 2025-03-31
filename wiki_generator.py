@@ -1,6 +1,9 @@
 import requests
 from typing import Dict
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 class WikiDocumentationGenerator:
     """Генератор документации для MediaWiki"""
@@ -9,6 +12,7 @@ class WikiDocumentationGenerator:
         self.base_url = base_url.rstrip('/')
         self.session = requests.Session()
         self.openai_client = openai_client
+        logger.info("Инициализация генератора Wiki документации")
         self._login(username, password)
 
     def _login(self, username: str, password: str):
@@ -42,6 +46,8 @@ class WikiDocumentationGenerator:
             str: URL страницы с документацией
         """
         project_name = project_structure['name']
+        logger.info(f"Начало генерации документации для проекта: {project_name}")
+        
         # Добавляем магические слова для отключения кнопок редактирования
         content = "__NOEDITSECTION__\n\n"
         content += f"= {project_name} =\n\n"
@@ -52,19 +58,20 @@ class WikiDocumentationGenerator:
         # Генерируем содержимое
         for directory in project_structure['directories']:
             if directory['type'] == 'directory':
+                logger.info(f"Обработка директории: {directory['name']}")
                 content += self._process_directory(directory)
             else:
+                logger.info(f"Обработка файла: {directory['name']}")
                 content += self._process_file(directory)
 
         # Сохраняем страницу
-        self._save_page(project_name, content)
-        
-        # Формируем прямую ссылку на страницу
-        page_url = f"{self.base_url}/index.php/{project_name}"
+        page_url = self._save_page(project_name, content)
+        logger.info(f"Документация сохранена: {page_url}")
         return page_url
 
     def _process_directory(self, directory: Dict, level: int = 2) -> str:
         """Обработка директории"""
+        logger.info(f"Генерация документации для директории: {directory['name']}")
         content = f"{'=' * level} Директория: {directory['name']} {'=' * level}\n\n"
         content += f"Путь: <code>{directory['path']}</code>\n\n"
         
@@ -75,6 +82,7 @@ class WikiDocumentationGenerator:
 
     def _process_file(self, file: Dict, level: int = 2) -> str:
         """Обработка файла"""
+        logger.info(f"Генерация документации для файла: {file['name']}")
         content = f"{'=' * level} Файл: {file['name']} {'=' * level}\n\n"
         content += f"Путь: <code>{file['path']}</code>\n\n"
 
@@ -93,22 +101,26 @@ class WikiDocumentationGenerator:
 
     def _process_class(self, cls: Dict, level: int) -> str:
         """Обработка класса"""
+        logger.info(f"Генерация документации для класса: {cls['name']}")
         content = f"{'=' * level} Класс {cls['name']} {'=' * level}\n\n"
         
-        # Генерация описания класса
         class_prompt = f"""Напиши подробное описание Python класса на основе следующей информации:
         Название: {cls['name']}
         Базовые классы: {', '.join(cls['bases'])}
         Docstring: {cls['docstring']}
-        Методы: {[m['name'] for m in cls['methods']]}
+        
+        Исходный код класса:
+        ```python
+        {cls['source_code']}
+        ```
         
         Опиши:
-        1. Основное назначение класса
-        2. Какие задачи решает
-        3. Как взаимодействует с другими компонентами
-        4. Особенности реализации
+        1. Основное назначение класса (на основе анализа кода)
+        2. Как устроен класс внутри
+        3. Как взаимодействуют методы между собой
+        4. Особенности реализации и важные детали
         
-        Формат: простой текст, без заголовков, 3-4 предложения."""
+        Формат: простой текст, без заголовков, 4-5 предложений."""
         
         class_description = self._ask_gpt(class_prompt)
         content += f"{class_description}\n\n"
@@ -129,9 +141,10 @@ class WikiDocumentationGenerator:
 
     def _process_function(self, func: Dict) -> str:
         """Обработка функции/метода"""
+        logger.info(f"Генерация документации для функции: {func['name']}")
         content = f"===== {func['name']} =====\n\n"
         
-        # Генерация описания функции
+        # Генерация описания функции с учетом исходного кода
         func_prompt = f"""Напиши подробное описание Python функции/метода на основе:
         Название: {func['name']}
         Параметры: {[f"{arg['name']}: {arg['type']}" for arg in func['args']]}
@@ -139,13 +152,18 @@ class WikiDocumentationGenerator:
         Декораторы: {func['decorators']}
         Docstring: {func['docstring']}
         
-        Опиши:
-        1. Что делает функция
-        2. Как использовать
-        3. Особенности работы
-        4. Примеры использования (если уместно)
+        Исходный код:
+        ```python
+        {func['source_code']}
+        ```
         
-        Формат: простой текст, без заголовков, 2-3 предложения."""
+        Опиши:
+        1. Что конкретно делает функция (на основе анализа кода)
+        2. Как она работает внутри
+        3. Особенности реализации и важные детали
+        4. Примеры использования
+        
+        Формат: простой текст, без заголовков, 3-4 предложения."""
         
         func_description = self._ask_gpt(func_prompt)
         content += f"{func_description}\n\n"
@@ -178,15 +196,17 @@ class WikiDocumentationGenerator:
     def _ask_gpt(self, prompt: str, max_tokens: int = 1000) -> str:
         """Запрос к GPT для генерации описания"""
         try:
+            logger.debug("Отправка запроса к GPT")
             response = self.openai_client.chat.completions.create(
                 model="gpt-4-1106-preview",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=max_tokens
             )
+            logger.debug("Получен ответ от GPT")
             return response.choices[0].message.content
         except Exception as e:
-            print(f"GPT error: {e}")
+            logger.error(f"Ошибка при запросе к GPT: {e}", exc_info=True)
             return "*Не удалось сгенерировать описание*"
 
     def _save_page(self, title: str, content: str):
