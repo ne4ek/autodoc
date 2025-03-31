@@ -9,10 +9,10 @@ logger = logging.getLogger(__name__)
 class WikiDocumentationGenerator:
     """Генератор документации для MediaWiki"""
     
-    def __init__(self, base_url: str, username: str, password: str, openai_client):
+    def __init__(self, base_url: str, username: str, password: str, llm_provider: LLMProvider):
         self.base_url = base_url.rstrip('/')
         self.session = requests.Session()
-        self.openai_client = openai_client
+        self.llm_provider = llm_provider  # Переименовано из openai_client
         logger.info("Инициализация генератора Wiki документации")
         self._login(username, password)
 
@@ -198,19 +198,15 @@ class WikiDocumentationGenerator:
         return content
 
     def _ask_gpt(self, prompt: str, max_tokens: int = 1000) -> str:
-        """Запрос к GPT для генерации описания"""
+        """Запрос к языковой модели"""
         try:
-            logger.debug("Отправка запроса к GPT")
-            response = self.openai_client.chat.completions.create(
-                model="gpt-4-1106-preview",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=max_tokens
-            )
-            logger.debug("Получен ответ от GPT")
-            return response.choices[0].message.content
+            logger.debug("Отправка запроса к языковой модели")
+            # Используем общий интерфейс провайдера
+            response = self.llm_provider.generate_text(prompt, max_tokens)
+            logger.debug("Получен ответ от языковой модели")
+            return response
         except Exception as e:
-            logger.error(f"Ошибка при запросе к GPT: {e}", exc_info=True)
+            logger.error(f"Ошибка при запросе к языковой модели: {e}", exc_info=True)
             return "*Не удалось сгенерировать описание*"
 
     def _save_page(self, title: str, content: str):

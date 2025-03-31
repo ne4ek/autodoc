@@ -29,10 +29,11 @@ def main():
     setup_logger()
     logger.info("Запуск генератора документации")
     
-    # Инициализация OpenAI клиента
-    openai_client = get_llm_provider()
-    
     try:
+        # Инициализация LLM провайдера
+        llm_provider = get_llm_provider()
+        logger.info(f"Используется провайдер: {type(llm_provider).__name__}")
+        
         # 1. Анализ структуры проекта
         logger.info("Начало анализа структуры проекта")
         analyzer = ProjectAnalyzer(PROJECT_PATH)
@@ -56,7 +57,7 @@ def main():
                 MEDIAWIKI_BASE_URL,
                 MEDIAWIKI_USERNAME,
                 MEDIAWIKI_PASSWORD,
-                openai_client
+                llm_provider
             )
             wiki_url = wiki_gen.generate_docs(project_structure)
             logger.info(f"Документация сохранена в MediaWiki: {wiki_url}")
