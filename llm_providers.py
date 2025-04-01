@@ -21,15 +21,22 @@ class OpenAIProvider(LLMProvider):
 
     def generate_text(self, prompt: str, max_tokens: int = 1000) -> str:
         try:
-            logger.debug("Отправка запроса к OpenAI")
+            logger.debug(f"Отправка запроса к OpenAI. Длина промпта: {len(prompt)} символов")
             response = self.client.chat.completions.create(
                 model="gpt-4-1106-preview",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.3,
                 max_tokens=max_tokens
             )
-            logger.debug("Получен ответ от OpenAI")
-            return response.choices[0].message.content
+            result = response.choices[0].message.content
+            
+            # Логирование результата
+            logger.info(f"Получен ответ от OpenAI. Длина: {len(result)} символов")
+            # Сокращаем вывод в лог для читаемости
+            shortened_result = result[:100] + "..." if len(result) > 100 else result
+            logger.info(f"Ответ: {shortened_result}")
+            
+            return result
         except Exception as e:
             logger.error(f"Ошибка при запросе к OpenAI: {e}", exc_info=True)
             return "*Не удалось сгенерировать описание*"
@@ -59,26 +66,52 @@ class OllamaProvider(LLMProvider):
 
     def generate_text(self, prompt: str, max_tokens: int = 500) -> str:
         try:
-            # Обрезаем промпт до безопасной длины
-            truncated_prompt = self._truncate_prompt(prompt, self.max_context_length)
+            # Очищаем и упрощаем промпт для WizardCoder
+            clean_prompt = self._simplify_prompt(prompt)
             
-            logger.debug(f"Отправка запроса к WizardCoder ({self.model_name})")
+            # Обрезаем промпт до безопасной длины
+            truncated_prompt = self._truncate_prompt(clean_prompt, self.max_context_length)
+            
+            logger.debug(f"Отправка запроса к WizardCoder. Длина промпта: {len(truncated_prompt)} символов")
+            # Выводим сам промпт в debug для отладки
+            logger.debug(f"Промпт: {truncated_prompt[:150]}...")
+            
             response = requests.post(
                 f"{self.host}/v1/completions",
                 headers={"Content-Type": "application/json"},
                 json={
                     "prompt": truncated_prompt,
-                    "max_tokens": max_tokens,  # Уменьшаем максимальное количество токенов
+                    "max_tokens": max_tokens,
                     "temperature": 0.3,
-                    "model": self.model_name
+                    "model": self.model_name,
+                    "stop": ["```"]
                 }
             )
             
             if response.status_code == 200:
-                logger.debug("Получен ответ от WizardCoder")
-                return response.json()['choices'][0]['text']
+                text = response.json()['choices'][0]['text']
+                
+                # Логирование результата
+                logger.info(f"Получен ответ от WizardCoder. Длина: {len(text)} символов")
+                # Сокращаем вывод в лог для читаемости
+                shortened_text = text[:100] + "..." if len(text) > 100 else text
+                logger.info(f"Ответ: {shortened_text}")
+                
+                # Если ответ пустой или слишком короткий, генерируем стандартный ответ
+                if not text or len(text.strip()) < 10:
+                    default_text = self._generate_default_description(truncated_prompt)
+                    logger.warning(f"Генерация стандартного ответа: {default_text}")
+                    return default_text
+                    
+                return text
             else:
-                raise Exception(f"Ошибка API: {response.text}")
+                error_message = f"Ошибка API: {response.text}"
+                logger.error(error_message)
+                default_text = self._generate_default_description(truncated_prompt)
+                logger.warning(f"Генерация стандартного ответа: {default_text}")
+                return default_text
         except Exception as e:
             logger.error(f"Ошибка при запросе к WizardCoder: {e}", exc_info=True)
-            return "*Не удалось сгенерировать описание*" 
+            default_text = self._generate_default_description(truncated_prompt)
+            logger.warning(f"Генерация стандартного ответа: {default_text}")
+            return default_text 

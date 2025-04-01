@@ -4,6 +4,7 @@ from pathlib import Path
 import logging
 from urllib.parse import quote
 from llm_providers import LLMProvider
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ class WikiDocumentationGenerator:
 
     def _process_class(self, cls: Dict, level: int) -> str:
         """Обработка класса"""
-        logger.info(f"Генерация документации для класса: {cls['name']}")
+        logger.info(f"Обработка класса: {cls['name']}")
         content = f"{'=' * level} Класс {cls['name']} {'=' * level}\n\n"
         
         # Добавляем путь с номером строки
@@ -137,7 +138,10 @@ class WikiDocumentationGenerator:
         Ответ должен быть 3-4 четкими и понятными предложениями.
         """
         
+        logger.info(f"Запрос описания для класса: {cls['name']}")
         class_description = self._ask_gpt(class_prompt)
+        logger.info(f"Получено описание длиной {len(class_description)} символов")
+        
         content += f"{class_description}\n\n"
         
         if cls['bases']:
@@ -149,8 +153,9 @@ class WikiDocumentationGenerator:
         # Методы класса
         if cls['methods']:
             content += "==== Методы ====\n\n"
-            for method in cls['methods']:
-                # Передаем родительский путь методам
+            logger.info(f"Обработка {len(cls['methods'])} методов класса {cls['name']}")
+            for i, method in enumerate(cls['methods']):
+                logger.info(f"Обработка метода {i+1}/{len(cls['methods'])}: {method['name']}")
                 method['parent_path'] = cls.get('parent_path', '')
                 content += self._process_function(method)
 
@@ -158,7 +163,7 @@ class WikiDocumentationGenerator:
 
     def _process_function(self, func: Dict) -> str:
         """Обработка функции/метода"""
-        logger.info(f"Генерация документации для функции: {func['name']}")
+        logger.info(f"Обработка функции/метода: {func['name']}")
         content = f"===== {func['name']} =====\n\n"
         
         # Добавляем путь с номером строки
@@ -185,7 +190,10 @@ class WikiDocumentationGenerator:
         Ответ должен быть 2-3 четкими и понятными предложениями.
         """
         
+        logger.info(f"Запрос описания для функции: {func['name']}")
         func_description = self._ask_gpt(func_prompt)
+        logger.info(f"Получено описание длиной {len(func_description)} символов")
+        
         content += f"{func_description}\n\n"
         
         # Сигнатура функции
@@ -215,14 +223,26 @@ class WikiDocumentationGenerator:
 
     def _ask_gpt(self, prompt: str, max_tokens: int = 1000) -> str:
         """Запрос к языковой модели"""
+        method_name = "неизвестный метод"
+        # Попытка извлечь имя метода из промпта
+        for line in prompt.split("\n"):
+            if "Название:" in line:
+                method_name = line.split("Название:")[1].strip()
+                break
+                
+        logger.info(f"Отправка запроса к ИИ для: {method_name}")
+        
         try:
-            logger.debug("Отправка запроса к языковой модели")
-            # Используем общий интерфейс провайдера
+            start_time = time.time()
             response = self.llm_provider.generate_text(prompt, max_tokens)
-            logger.debug("Получен ответ от языковой модели")
+            elapsed_time = time.time() - start_time
+            
+            logger.info(f"Запрос выполнен за {elapsed_time:.2f} секунд")
+            logger.info(f"Полученный ответ ({len(response)} символов): {response[:50]}...")
+            
             return response
         except Exception as e:
-            logger.error(f"Ошибка при запросе к языковой модели: {e}", exc_info=True)
+            logger.error(f"Ошибка при запросе к ИИ: {e}", exc_info=True)
             return "*Не удалось сгенерировать описание*"
 
     def _save_page(self, title: str, content: str):
