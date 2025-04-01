@@ -89,17 +89,21 @@ class WikiDocumentationGenerator:
         """Обработка файла"""
         logger.info(f"Генерация документации для файла: {file['name']}")
         content = f"{'=' * level} Файл: {file['name']} {'=' * level}\n\n"
-        content += f"Путь: <code>{file['path']}</code>\n\n"
+        content += f"Путь: #{file['path']}\n\n"
 
         # Обработка классов
         if file['classes']:
             for cls in file['classes']:
+                # Устанавливаем родительский путь
+                cls['parent_path'] = file['path']
                 content += self._process_class(cls, level + 1)
 
         # Обработка функций
         if file['functions']:
             content += f"{'=' * (level + 1)} Функции {'=' * (level + 1)}\n\n"
             for func in file['functions']:
+                # Устанавливаем родительский путь
+                func['parent_path'] = file['path']
                 content += self._process_function(func)
 
         return content
@@ -109,16 +113,29 @@ class WikiDocumentationGenerator:
         logger.info(f"Генерация документации для класса: {cls['name']}")
         content = f"{'=' * level} Класс {cls['name']} {'=' * level}\n\n"
         
-        # Сокращаем промпт для класса
-        class_prompt = f"""Опиши кратко Python класс:
+        # Добавляем путь с номером строки
+        parent_path = cls.get('parent_path', '')
+        path_with_line = f"{parent_path}:{cls['line_number']}" if parent_path else ''
+        if path_with_line:
+            content += f"Путь: #{path_with_line}\n\n"
+        
+        # Обновленный промпт с акцентом на словесное описание
+        class_prompt = f"""Проанализируй этот Python класс и предоставь ТОЛЬКО словесное описание:
         Название: {cls['name']}
         Базовые классы: {', '.join(cls['bases'])}
         Методы: {[m['name'] for m in cls['methods']]}
+        Docstring: {cls['docstring']}
         
-        Основной код:
-        {cls['source_code'][:500]}  # Ограничиваем длину кода
+        Код класса (только для анализа):
+        ```python
+        {cls['source_code'][:500]}
+        ```
         
-        Опиши основное назначение класса."""
+        ВАЖНО: В ответе НЕ ВКЛЮЧАЙ исходный код, примеры кода или синтаксис.
+        Дай ТОЛЬКО чисто словесное описание того, что делает класс, его назначение и как он используется.
+        Опиши человеческим языком, как будто объясняешь коллеге, не используя технические термины там, где это не обязательно.
+        Ответ должен быть 3-4 четкими и понятными предложениями.
+        """
         
         class_description = self._ask_gpt(class_prompt)
         content += f"{class_description}\n\n"
@@ -133,6 +150,8 @@ class WikiDocumentationGenerator:
         if cls['methods']:
             content += "==== Методы ====\n\n"
             for method in cls['methods']:
+                # Передаем родительский путь методам
+                method['parent_path'] = cls.get('parent_path', '')
                 content += self._process_function(method)
 
         return content
@@ -142,16 +161,29 @@ class WikiDocumentationGenerator:
         logger.info(f"Генерация документации для функции: {func['name']}")
         content = f"===== {func['name']} =====\n\n"
         
-        # Сокращаем промпт, оставляя только самое важное
-        func_prompt = f"""Опиши кратко Python функцию:
+        # Добавляем путь с номером строки
+        parent_path = func.get('parent_path', '')
+        path_with_line = f"{parent_path}:{func['line_number']}" if parent_path else ''
+        if path_with_line:
+            content += f"Путь: #{path_with_line}\n\n"
+        
+        # Обновленный промпт с акцентом на словесное описание
+        func_prompt = f"""Проанализируй эту Python функцию и предоставь ТОЛЬКО словесное описание:
         Название: {func['name']}
         Параметры: {[f"{arg['name']}: {arg['type']}" for arg in func['args']]}
         Возвращает: {func['returns']}
+        Docstring: {func['docstring']}
         
-        Код:
-        {func['source_code'][:500]}  # Ограничиваем длину кода
+        Код функции (только для анализа):
+        ```python
+        {func['source_code'][:500]}
+        ```
         
-        Опиши основное назначение и способ использования функции."""
+        ВАЖНО: В ответе НЕ ВКЛЮЧАЙ исходный код, примеры кода или синтаксис. 
+        Дай ТОЛЬКО чисто словесное описание того, что делает функция, как она работает и для чего используется.
+        Опиши человеческим языком, как будто объясняешь коллеге, не используя технические термины там, где это не обязательно.
+        Ответ должен быть 2-3 четкими и понятными предложениями.
+        """
         
         func_description = self._ask_gpt(func_prompt)
         content += f"{func_description}\n\n"
