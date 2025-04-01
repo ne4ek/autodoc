@@ -105,8 +105,7 @@ class ProjectAnalyzer:
             'docstring': ast.get_docstring(class_node) or '',
             'methods': [],
             'bases': [ast.unparse(base) for base in class_node.bases],
-            'source_code': self._get_source_code(class_node, source_lines),
-            'line_number': class_node.lineno
+            'source_code': self._get_source_code(class_node, source_lines)
         }
         
         for node in class_node.body:
@@ -135,8 +134,5 @@ class ProjectAnalyzer:
             'returns': return_type,
             'docstring': ast.get_docstring(func_node) or '',
             'decorators': [ast.unparse(decorator) for decorator in func_node.decorator_list],
-            'source_code': self._get_source_code(func_node, source_lines),
-            'line_number': func_node.lineno
+            'source_code': self._get_source_code(func_node, source_lines)
         }
-
-    # ... existing code for _analyze_directory, _analyze_file, _analyze_class, _analyze_function ... 

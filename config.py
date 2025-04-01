@@ -42,4 +42,11 @@ LLM_PROVIDER = os.getenv('LLM_PROVIDER', 'openai')
 
 # Настройки WizardCoder
 WIZARDCODER_MODEL = os.getenv('WIZARDCODER_MODEL', 'wizardcoder:7b-python')
-WIZARDCODER_HOST = os.getenv('WIZARDCODER_HOST', 'http://localhost:8000') 
+WIZARDCODER_HOST = os.getenv('WIZARDCODER_HOST', 'http://localhost:8000')
+
+# SonarQube конфигурация
+SONARQUBE_URL = os.getenv('SONARQUBE_URL', 'http://localhost:9000')
+SONARQUBE_TOKEN = os.getenv('SONARQUBE_TOKEN', '')
+
+# Тип анализатора (ast или sonarqube)
+ANALYZER_TYPE = os.getenv('ANALYZER_TYPE', 'ast') 
