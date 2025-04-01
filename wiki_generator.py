@@ -111,51 +111,39 @@ class WikiDocumentationGenerator:
 
     def _process_class(self, cls: Dict, level: int) -> str:
         """Обработка класса"""
-        logger.info(f"Обработка класса: {cls['name']}")
         content = f"{'=' * level} Класс {cls['name']} {'=' * level}\n\n"
         
         # Добавляем путь с номером строки
         parent_path = cls.get('parent_path', '')
-        path_with_line = f"{parent_path}:{cls['line_number']}" if parent_path else ''
+        # Используем метод get() для безопасного получения line_number с значением по умолчанию
+        line_number = cls.get('line_number', '0')
+        path_with_line = f"{parent_path}:{line_number}" if parent_path else ''
+        
         if path_with_line:
             content += f"Путь: #{path_with_line}\n\n"
         
-        # Обновленный промпт с акцентом на словесное описание
-        class_prompt = f"""Проанализируй этот Python класс и предоставь ТОЛЬКО словесное описание:
-        Название: {cls['name']}
-        Базовые классы: {', '.join(cls['bases'])}
-        Методы: {[m['name'] for m in cls['methods']]}
-        Docstring: {cls['docstring']}
+        # Обновленный промпт для WizardCoder
+        class_prompt = f"""Название: {cls['name']}
+Базовые классы: {', '.join(cls.get('bases', []))}
+Методы: {[m['name'] for m in cls.get('methods', [])]}
+Описание: {cls.get('docstring', '')}
+
+Что делает этот класс? Опиши простыми словами без кода."""
         
-        Код класса (только для анализа):
-        ```python
-        {cls['source_code'][:500]}
-        ```
-        
-        ВАЖНО: В ответе НЕ ВКЛЮЧАЙ исходный код, примеры кода или синтаксис.
-        Дай ТОЛЬКО чисто словесное описание того, что делает класс, его назначение и как он используется.
-        Опиши человеческим языком, как будто объясняешь коллеге, не используя технические термины там, где это не обязательно.
-        Ответ должен быть 3-4 четкими и понятными предложениями.
-        """
-        
-        logger.info(f"Запрос описания для класса: {cls['name']}")
         class_description = self._ask_gpt(class_prompt)
-        logger.info(f"Получено описание длиной {len(class_description)} символов")
-        
         content += f"{class_description}\n\n"
         
-        if cls['bases']:
+        if cls.get('bases'):
             content += f"Наследуется от: {', '.join(cls['bases'])}\n\n"
         
-        if cls['docstring']:
+        if cls.get('docstring'):
             content += f"'''{cls['docstring']}'''\n\n"
 
         # Методы класса
-        if cls['methods']:
+        if cls.get('methods'):
             content += "==== Методы ====\n\n"
-            logger.info(f"Обработка {len(cls['methods'])} методов класса {cls['name']}")
-            for i, method in enumerate(cls['methods']):
-                logger.info(f"Обработка метода {i+1}/{len(cls['methods'])}: {method['name']}")
+            for method in cls['methods']:
+                # Передаем родительский путь методам
                 method['parent_path'] = cls.get('parent_path', '')
                 content += self._process_function(method)
 
@@ -163,57 +151,45 @@ class WikiDocumentationGenerator:
 
     def _process_function(self, func: Dict) -> str:
         """Обработка функции/метода"""
-        logger.info(f"Обработка функции/метода: {func['name']}")
         content = f"===== {func['name']} =====\n\n"
         
         # Добавляем путь с номером строки
         parent_path = func.get('parent_path', '')
-        path_with_line = f"{parent_path}:{func['line_number']}" if parent_path else ''
+        # Используем метод get() для безопасного получения line_number с значением по умолчанию
+        line_number = func.get('line_number', '0')
+        path_with_line = f"{parent_path}:{line_number}" if parent_path else ''
+        
         if path_with_line:
             content += f"Путь: #{path_with_line}\n\n"
         
-        # Обновленный промпт с акцентом на словесное описание
-        func_prompt = f"""Проанализируй эту Python функцию и предоставь ТОЛЬКО словесное описание:
-        Название: {func['name']}
-        Параметры: {[f"{arg['name']}: {arg['type']}" for arg in func['args']]}
-        Возвращает: {func['returns']}
-        Docstring: {func['docstring']}
+        # Упрощенный промпт для WizardCoder
+        func_prompt = f"""Название: {func['name']}
+Параметры: {[f"{arg['name']}" for arg in func.get('args', [])]}
+Описание: {func.get('docstring', '')}
+
+Что делает эта функция? Опиши простыми словами без кода."""
         
-        Код функции (только для анализа):
-        ```python
-        {func['source_code'][:500]}
-        ```
-        
-        ВАЖНО: В ответе НЕ ВКЛЮЧАЙ исходный код, примеры кода или синтаксис. 
-        Дай ТОЛЬКО чисто словесное описание того, что делает функция, как она работает и для чего используется.
-        Опиши человеческим языком, как будто объясняешь коллеге, не используя технические термины там, где это не обязательно.
-        Ответ должен быть 2-3 четкими и понятными предложениями.
-        """
-        
-        logger.info(f"Запрос описания для функции: {func['name']}")
         func_description = self._ask_gpt(func_prompt)
-        logger.info(f"Получено описание длиной {len(func_description)} символов")
-        
         content += f"{func_description}\n\n"
         
         # Сигнатура функции
         signature = f"{func['name']}("
         args = []
-        for arg in func['args']:
+        for arg in func.get('args', []):
             arg_str = arg['name']
-            if arg['type']:
+            if arg.get('type'):
                 arg_str += f": {arg['type']}"
             args.append(arg_str)
         signature += ", ".join(args) + ")"
-        if func['returns']:
+        if func.get('returns'):
             signature += f" -> {func['returns']}"
         
         content += f"<code>{signature}</code>\n\n"
 
-        if func['docstring']:
+        if func.get('docstring'):
             content += f"'''{func['docstring']}'''\n\n"
 
-        if func['decorators']:
+        if func.get('decorators'):
             content += "Декораторы:\n"
             for decorator in func['decorators']:
                 content += f"* <code>@{decorator}</code>\n"
